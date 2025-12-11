@@ -1,0 +1,40 @@
+{
+  "name": "Loot",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Loot item name"
+    },
+    "rarity": {
+      "type": "string",
+      "enum": [
+        "Common",
+        "Rare",
+        "Epic",
+        "Legendary"
+      ],
+      "default": "Common",
+      "description": "Loot rarity"
+    },
+    "flavorText": {
+      "type": "string",
+      "description": "RPG-style item description"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Icon name or emoji"
+    },
+    "obtainedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When item was obtained"
+    }
+  },
+  "required": [
+    "name",
+    "rarity",
+    "flavorText",
+    "icon"
+  ]
+}

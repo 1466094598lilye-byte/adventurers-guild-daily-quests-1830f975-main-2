@@ -1,0 +1,79 @@
+{
+  "name": "Quest",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Guild-style quest title"
+    },
+    "actionHint": {
+      "type": "string",
+      "description": "Clear action in parentheses"
+    },
+    "dueDate": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Quest deadline"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Quest tags"
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": [
+        "C",
+        "B",
+        "A",
+        "S"
+      ],
+      "default": "C",
+      "description": "Quest difficulty rank"
+    },
+    "rarity": {
+      "type": "string",
+      "enum": [
+        "Common",
+        "Rare",
+        "Epic",
+        "Legendary"
+      ],
+      "default": "Common",
+      "description": "Quest rarity"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "todo",
+        "done",
+        "skipped"
+      ],
+      "default": "todo",
+      "description": "Quest status"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "voice",
+        "text",
+        "ai"
+      ],
+      "default": "text",
+      "description": "How quest was created"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Quest assignment date"
+    }
+  },
+  "required": [
+    "title",
+    "actionHint",
+    "date"
+  ]
+}

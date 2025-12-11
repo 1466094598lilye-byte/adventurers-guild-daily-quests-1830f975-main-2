@@ -1,0 +1,27 @@
+{
+  "name": "DailyChest",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Chest date"
+    },
+    "opened": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether chest was opened"
+    },
+    "lootIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "IDs of loot obtained"
+    }
+  },
+  "required": [
+    "date"
+  ]
+}

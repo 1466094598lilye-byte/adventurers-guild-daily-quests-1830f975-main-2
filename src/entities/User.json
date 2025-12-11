@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "displayName": {
+      "type": "string",
+      "description": "Adventurer display name"
+    },
+    "title": {
+      "type": "string",
+      "description": "Current title/badge earned from milestones"
+    },
+    "unlockedMilestones": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "default": [],
+      "description": "Array of unlocked milestone streak days (e.g., [7, 21, 50])"
+    },
+    "streakCount": {
+      "type": "integer",
+      "default": 0,
+      "description": "Current consecutive days streak"
+    },
+    "longestStreak": {
+      "type": "integer",
+      "default": 0,
+      "description": "Longest streak achieved"
+    },
+    "lastClearDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Last date all quests were cleared"
+    },
+    "freezeTokenCount": {
+      "type": "integer",
+      "default": 0,
+      "description": "Number of freeze tokens available"
+    },
+    "chestOpenCounter": {
+      "type": "integer",
+      "default": 0,
+      "description": "Counter for chest opens towards freeze token pity (resets at 60)"
+    },
+    "restDays": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Array of dates marked as guild rest days (format: yyyy-MM-dd)"
+    },
+    "praiseTone": {
+      "type": "string",
+      "default": "guild",
+      "description": "Praise dialog tone"
+    }
+  },
+  "name": "User",
+  "required": [
+    "displayName",
+    "lastClearDate"
+  ]
+}
