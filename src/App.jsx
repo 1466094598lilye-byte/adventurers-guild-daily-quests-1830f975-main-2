@@ -4,7 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import VisualEditAgent from '@/lib/VisualEditAgent'
 import NavigationTracker from '@/lib/NavigationTracker'
-import { pagesConfig } from './pages.config'
+import { pagesConfig } from './pages/pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { setupIframeMessaging } from './lib/iframe-messaging';
 import PageNotFound from './lib/PageNotFound';

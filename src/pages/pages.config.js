@@ -1,8 +1,8 @@
-import QuestBoard from './pages/QuestBoard';
-import Journal from './pages/Journal';
-import Treasures from './pages/Treasures';
-import Profile from './pages/Profile';
-import __Layout from './Layout.jsx';
+import QuestBoard from './QuestBoard';
+import Journal from './Journal';
+import Treasures from './Treasures';
+import Profile from './Profile';
+import __Layout from '../Layout.jsx';
 
 
 export const PAGES = {
