@@ -57,7 +57,7 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,mp3,woff2}'],
-          runtimeCaching: [{ handler: 'NetworkFirst' , urlPattern: () => true },
+          runtimeCaching: [
             {
               urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
               handler: 'NetworkFirst',
@@ -74,7 +74,7 @@ export default defineConfig(({ mode }) => {
             },
             {
               urlPattern: /^https:\/\/api\.deepseek\.com\/.*/i,
-              handler: 'NetworkFirst',
+              handler: 'NetworkOnly',
               options: {
                 cacheName: 'deepseek-api-cache',
                 networkTimeoutSeconds: 10

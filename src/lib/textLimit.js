@@ -106,3 +106,4 @@ export const getTextLengthDescription = (text, maxLength, language = 'zh') => {
     return `Current: ${currentLength}/${maxLength} ${remaining < 0 ? '(exceeded)' : ''}`;
   }
 };
+

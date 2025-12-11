@@ -178,3 +178,4 @@ export const GenerateImage = Core.GenerateImage
 export const ExtractDataFromUploadedFile = Core.ExtractDataFromUploadedFile
 
 
+
