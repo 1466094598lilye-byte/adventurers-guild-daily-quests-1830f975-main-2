@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 // NavigationTracker - 日志功能暂时移除（Supabase 需要通过 Edge Functions 实现）
-import { pagesConfig } from '@/pages.config';
+import { pagesConfig } from '@/pages/pages.config';
 
 export default function NavigationTracker() {
     const location = useLocation();

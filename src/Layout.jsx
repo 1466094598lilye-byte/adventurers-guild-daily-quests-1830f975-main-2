@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Scroll, BookOpen, Gem, User, LogIn } from "lucide-react";
-import { LanguageProvider, useLanguage } from "@/components/LanguageContext";
+import { useLanguage } from "@/components/LanguageContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { auth } from "@/api/auth";
 import { useQuery } from "@tanstack/react-query";
@@ -179,9 +179,5 @@ function LayoutContent({ children }) {
 }
 
 export default function Layout({ children }) {
-  return (
-    <LanguageProvider>
-      <LayoutContent children={children} />
-    </LanguageProvider>
-  );
+  return <LayoutContent children={children} />;
 }
