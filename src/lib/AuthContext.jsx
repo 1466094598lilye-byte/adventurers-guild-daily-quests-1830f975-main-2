@@ -14,50 +14,69 @@ export const AuthProvider = ({ children }) => {
   const [migrationPrompt, setMigrationPrompt] = useState(null);
 
   // 获取完整用户信息（包含应用特定字段）
-  const fetchFullUser = async () => {
-    console.log('[AuthContext] fetchFullUser 调用前');
+  // ⚠️ 重要：此函数必须传入 authUser，不能依赖 dbUser.me() 内部调用 getUser
+  const fetchFullUser = async (authUser) => {
+    console.log('[AuthContext] fetchFullUser 调用前，authUser:', authUser?.id || null);
+    
+    // 🔥 如果没有传入 authUser，返回 null
+    if (!authUser) {
+      console.log('[AuthContext] 未传入 authUser，返回 null');
+      return null;
+    }
+    
     try {
-      console.log('[AuthContext] 调用 dbUser.me()');
-      const fullUser = await dbUser.me();
-      console.log('[AuthContext] dbUser.me() 成功返回:', {
+      console.log('[AuthContext] 调用 dbUser.me(authUser)');
+      // 🔥 传入 authUser，禁止 dbUser.me() 内部调用 getUser
+      const fullUser = await dbUser.me(authUser);
+      console.log('[AuthContext] dbUser.me() 返回:', {
         userId: fullUser?.id || null,
         email: fullUser?.email || null,
-        hasProfile: !!fullUser?.streakCount
+        hasProfile: !!fullUser?.streakCount,
+        isNull: fullUser === null
       });
+      
+      // 🔥 dbUser.me() 现在永远 resolve，不会 throw
+      // 如果返回 null，说明有问题，返回基础用户信息
+      if (!fullUser) {
+        console.log('[AuthContext] dbUser.me() 返回 null，使用基础用户信息');
+        return {
+          ...authUser,
+          streakCount: 0,
+          longestStreak: 0,
+          freezeTokenCount: 0,
+          restDays: [],
+          lastClearDate: null,
+          nextDayPlannedQuests: [],
+          lastPlannedDate: null,
+          unlockedMilestones: [],
+          title: null,
+          chestOpenCounter: 0,
+          streakManuallyReset: false
+        };
+      }
+      
       return fullUser;
     } catch (error) {
-      console.error('[AuthContext] fetchFullUser 错误:', {
+      // 🔥 理论上不会进入这里，因为 dbUser.me() 现在永远 resolve
+      console.error('[AuthContext] fetchFullUser 异常（不应该发生）:', {
         message: error.message,
         stack: error.stack
       });
-      // 如果用户未登录，返回 null（游客模式）
-      if (error.message === 'User not authenticated') {
-        console.log('[AuthContext] 用户未认证，返回 null');
-        return null;
-      }
-      // 如果是 profile 查询失败，返回基础用户信息而不是抛出错误
-      if (error.message?.includes('profiles') || error.code === 'PGRST301') {
-        console.log('[AuthContext] Profile 查询失败，降级到基础用户信息');
-        // 尝试获取基础用户信息
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          return {
-            ...authUser,
-            streakCount: 0,
-            longestStreak: 0,
-            freezeTokenCount: 0,
-            restDays: [],
-            lastClearDate: null,
-            nextDayPlannedQuests: [],
-            lastPlannedDate: null,
-            unlockedMilestones: [],
-            title: null,
-            chestOpenCounter: 0,
-            streakManuallyReset: false
-          };
-        }
-      }
-      throw error;
+      // 降级到基础用户信息
+      return {
+        ...authUser,
+        streakCount: 0,
+        longestStreak: 0,
+        freezeTokenCount: 0,
+        restDays: [],
+        lastClearDate: null,
+        nextDayPlannedQuests: [],
+        lastPlannedDate: null,
+        unlockedMilestones: [],
+        title: null,
+        chestOpenCounter: 0,
+        streakManuallyReset: false
+      };
     }
   };
 
@@ -79,13 +98,29 @@ export const AuthProvider = ({ children }) => {
         try {
           console.log('[AuthContext] SIGNED_IN: 开始获取完整用户信息');
           setIsLoadingAuth(true); // 确保在获取用户信息时显示加载状态
-          const fullUser = await fetchFullUser();
-          console.log('[AuthContext] SIGNED_IN: 获取完整用户信息成功，设置状态');
-          setUser(fullUser);
-          setIsAuthenticated(true);
-          setIsLoadingAuth(false);
-          setAuthError(null);
-          console.log('[AuthContext] SIGNED_IN: 状态设置完成，isLoadingAuth = false');
+          // 🔥 传入 session.user，禁止 fetchFullUser 内部调用 getUser
+          const fullUser = await fetchFullUser(session.user);
+          console.log('[AuthContext] SIGNED_IN: fetchFullUser 返回:', {
+            userId: fullUser?.id || null,
+            isNull: fullUser === null
+          });
+          
+          // 🔥 fetchFullUser 现在永远 resolve，不会 throw
+          if (!fullUser) {
+            console.log('[AuthContext] SIGNED_IN: fetchFullUser 返回 null，使用基础用户信息');
+            setUser(session.user);
+            setIsAuthenticated(true);
+            setIsLoadingAuth(false);
+            setAuthError(null);
+            console.log('[AuthContext] SIGNED_IN: 状态设置完成（基础用户），isLoadingAuth = false');
+          } else {
+            console.log('[AuthContext] SIGNED_IN: 获取完整用户信息成功，设置状态');
+            setUser(fullUser);
+            setIsAuthenticated(true);
+            setIsLoadingAuth(false);
+            setAuthError(null);
+            console.log('[AuthContext] SIGNED_IN: 状态设置完成，isLoadingAuth = false');
+          }
           
           // 检查是否有游客数据需要迁移
           if (hasGuestData()) {
@@ -133,11 +168,18 @@ export const AuthProvider = ({ children }) => {
         console.log('[AuthContext] TOKEN_REFRESHED 事件处理');
         // Token 刷新时也刷新用户信息
         try {
-          const fullUser = await fetchFullUser();
-          setUser(fullUser);
-          console.log('[AuthContext] TOKEN_REFRESHED: 用户信息已刷新');
+          // 🔥 传入 session.user，禁止 fetchFullUser 内部调用 getUser
+          const fullUser = await fetchFullUser(session.user);
+          if (fullUser) {
+            setUser(fullUser);
+            console.log('[AuthContext] TOKEN_REFRESHED: 用户信息已刷新');
+          } else {
+            setUser(session.user);
+            console.log('[AuthContext] TOKEN_REFRESHED: fetchFullUser 返回 null，使用基础用户信息');
+          }
         } catch (error) {
-          console.error('[AuthContext] TOKEN_REFRESHED: Failed to refresh user:', error);
+          // 🔥 理论上不会进入这里
+          console.error('[AuthContext] TOKEN_REFRESHED: Failed to refresh user (不应该发生):', error);
           setUser(session.user);
         }
       } else {
@@ -186,21 +228,36 @@ export const AuthProvider = ({ children }) => {
         // 获取完整用户信息
         try {
           console.log('[AuthContext] 步骤4: 有用户，开始获取完整用户信息');
-          console.log('[AuthContext] 步骤5: 调用 fetchFullUser()');
-          const fullUser = await fetchFullUser();
+          console.log('[AuthContext] 步骤5: 调用 fetchFullUser(authUser)');
+          // 🔥 传入 authUser，禁止 fetchFullUser 内部调用 getUser
+          const fullUser = await fetchFullUser(authUser);
           console.log('[AuthContext] 步骤6: fetchFullUser() 返回:', {
             userId: fullUser?.id || null,
             hasStreakCount: fullUser?.streakCount !== undefined,
-            email: fullUser?.email || null
+            email: fullUser?.email || null,
+            isNull: fullUser === null
           });
-          console.log('[AuthContext] 步骤7: 设置用户和认证状态');
-          setUser(fullUser);
-          setIsAuthenticated(true);
-          console.log('[AuthContext] 步骤8: 设置 isLoadingAuth = false (成功获取用户)');
-          setIsLoadingAuth(false);
-          console.log('[AuthContext] ========== checkAuthState 完成 (成功分支) ==========');
+          
+          // 🔥 fetchFullUser 现在永远 resolve，不会 throw
+          // 如果返回 null，使用基础用户信息
+          if (!fullUser) {
+            console.log('[AuthContext] fetchFullUser 返回 null，使用基础用户信息');
+            setUser(authUser);
+            setIsAuthenticated(true);
+            console.log('[AuthContext] 步骤8: 设置 isLoadingAuth = false (使用基础用户)');
+            setIsLoadingAuth(false);
+            console.log('[AuthContext] ========== checkAuthState 完成 (基础用户分支) ==========');
+          } else {
+            console.log('[AuthContext] 步骤7: 设置用户和认证状态');
+            setUser(fullUser);
+            setIsAuthenticated(true);
+            console.log('[AuthContext] 步骤8: 设置 isLoadingAuth = false (成功获取用户)');
+            setIsLoadingAuth(false);
+            console.log('[AuthContext] ========== checkAuthState 完成 (成功分支) ==========');
+          }
         } catch (error) {
-          console.error('[AuthContext] 步骤6: Failed to fetch full user:', {
+          // 🔥 理论上不会进入这里，因为 fetchFullUser 现在永远 resolve
+          console.error('[AuthContext] 步骤6: Failed to fetch full user (不应该发生):', {
             message: error.message,
             code: error.code,
             details: error.details
@@ -240,12 +297,17 @@ export const AuthProvider = ({ children }) => {
 
   // 刷新用户信息（用于更新用户数据后）
   const refreshUser = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !user) return;
     try {
-      const fullUser = await fetchFullUser();
-      setUser(fullUser);
+      // 🔥 传入当前 user，禁止 fetchFullUser 内部调用 getUser
+      const fullUser = await fetchFullUser(user);
+      if (fullUser) {
+        setUser(fullUser);
+      }
+      // 如果返回 null，保持当前 user 不变
     } catch (error) {
-      console.error('Failed to refresh user:', error);
+      // 🔥 理论上不会进入这里
+      console.error('[AuthContext] Failed to refresh user (不应该发生):', error);
     }
   };
 

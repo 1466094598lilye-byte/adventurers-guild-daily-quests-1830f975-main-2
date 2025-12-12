@@ -4,8 +4,15 @@ import { dbUser } from '@/lib/db';
 
 export const auth = {
   // 获取当前用户
+  // ⚠️ 注意：此函数需要先获取 authUser，然后传入 dbUser.me()
   async me() {
-    return dbUser.me();
+    // 🔥 在 auth.js 中，我们需要先获取 authUser，然后传入
+    const { data: { user: authUser }, error } = await supabase.auth.getUser();
+    if (error || !authUser) {
+      return null;
+    }
+    // 🔥 传入 authUser，禁止 dbUser.me() 内部调用 getUser
+    return dbUser.me(authUser);
   },
 
   // 更新用户信息

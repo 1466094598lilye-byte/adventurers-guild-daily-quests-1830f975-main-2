@@ -205,74 +205,145 @@ export const dbDelete = {
  */
 export const dbUser = {
   // 获取当前用户信息（从 Supabase Auth 和 profiles 表）
-  async me() {
-    console.log('[dbUser.me] 开始获取用户信息');
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !authUser) {
-      console.log('[dbUser.me] 用户未认证:', authError?.message || 'No user');
-      throw new Error('User not authenticated');
-    }
-    
-    console.log('[dbUser.me] Auth 用户获取成功:', authUser.id);
-    
-    // 尝试从 profiles 表获取额外信息
-    console.log('[dbUser.me] 开始查询 profiles 表');
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', authUser.id)
-      .single();
-    
-    // 🔥 关键修复：如果 profile 查询失败（比如 RLS 权限问题），返回基础用户信息而不是抛出错误
-    if (profileError) {
-      console.warn('[dbUser.me] Profile 查询失败，使用基础用户信息:', {
-        error: profileError.message,
-        code: profileError.code,
-        details: profileError.details
+  // ⚠️ 重要：此函数禁止内部调用 supabase.auth.getUser()，必须从外部传入 authUser
+  // 参数：authUser - 从 supabase.auth.getUser() 获取的用户对象（必需）
+  async me(authUser = null) {
+    // 🔥 最外层 try/catch，确保永远 resolve
+    try {
+      console.log('[dbUser.me] 开始获取用户信息');
+      
+      // 🔥 禁止内部调用 getUser，必须从外部传入
+      if (!authUser) {
+        console.warn('[dbUser.me] 未传入 authUser，返回 null');
+        return null;
+      }
+      
+      console.log('[dbUser.me] Auth 用户已传入:', authUser.id);
+      
+      // 🔥 使用 maybeSingle() 而不是 single()，避免 Promise 挂起
+      // 🔥 添加超时保护，确保查询不会永久 pending
+      console.log('[dbUser.me] 开始查询 profiles 表');
+      
+      const profileQueryPromise = supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle();
+      
+      // 添加超时保护（5秒）
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Profile query timeout')), 5000);
       });
-      // 返回基础用户信息，而不是抛出错误
+      
+      let profile = null;
+      let profileError = null;
+      
+      try {
+        const result = await Promise.race([profileQueryPromise, timeoutPromise]);
+        // Promise.race 的结果：
+        // - 如果查询成功：result = { data: {...} 或 null, error: null }
+        // - 如果查询失败：result = { data: null, error: {...} }
+        // - 如果超时：会被 catch 捕获
+        if (result) {
+          if (result.error) {
+            profileError = result.error;
+          } else {
+            // result.data 可能是 null（没有找到记录），这是正常的，不是错误
+            profile = result.data; // 可能是 null，这是正常的
+          }
+        }
+      } catch (error) {
+        // 超时或其他错误
+        if (error.message === 'Profile query timeout') {
+          console.warn('[dbUser.me] Profile 查询超时（5秒），使用基础用户信息');
+        } else {
+          console.warn('[dbUser.me] Profile 查询异常:', {
+            message: error.message,
+            isTimeout: error.message === 'Profile query timeout'
+          });
+        }
+        profileError = error;
+      }
+      
+      // 🔥 无论 profile 是否存在，都必须返回结果
+      if (profileError) {
+        console.warn('[dbUser.me] Profile 查询失败，使用基础用户信息:', {
+          error: profileError.message,
+          code: profileError.code,
+          details: profileError.details
+        });
+        // 返回基础用户信息，而不是抛出错误
+        return {
+          ...authUser,
+          id: authUser.id,
+          email: authUser.email,
+          full_name: authUser.user_metadata?.full_name || authUser.email,
+          // 添加默认值以兼容现有代码
+          streakCount: 0,
+          longestStreak: 0,
+          freezeTokenCount: 0,
+          restDays: [],
+          lastClearDate: null,
+          nextDayPlannedQuests: [],
+          lastPlannedDate: null,
+          unlockedMilestones: [],
+          title: null,
+          chestOpenCounter: 0,
+          streakManuallyReset: false
+        };
+      }
+      
+      console.log('[dbUser.me] Profile 查询成功，合并数据');
+      // 合并数据
       return {
         ...authUser,
+        ...(profile || {}),
         id: authUser.id,
         email: authUser.email,
-        full_name: authUser.user_metadata?.full_name || authUser.email,
+        full_name: profile?.full_name || authUser.user_metadata?.full_name || authUser.email,
         // 添加默认值以兼容现有代码
-        streakCount: 0,
-        longestStreak: 0,
-        freezeTokenCount: 0,
-        restDays: [],
-        lastClearDate: null,
-        nextDayPlannedQuests: [],
-        lastPlannedDate: null,
-        unlockedMilestones: [],
-        title: null,
-        chestOpenCounter: 0,
-        streakManuallyReset: false
+        streakCount: profile?.streak_count || 0,
+        longestStreak: profile?.longest_streak || 0,
+        freezeTokenCount: profile?.freeze_token_count || 0,
+        restDays: profile?.rest_days || [],
+        lastClearDate: profile?.last_clear_date || null,
+        nextDayPlannedQuests: profile?.next_day_planned_quests || [],
+        lastPlannedDate: profile?.last_planned_date || null,
+        unlockedMilestones: profile?.unlocked_milestones || [],
+        title: profile?.title || null,
+        chestOpenCounter: profile?.chest_open_counter || 0,
+        streakManuallyReset: profile?.streak_manually_reset || false
       };
+    } catch (error) {
+      // 🔥 最外层 catch，确保永远 resolve
+      console.error('[dbUser.me] 最外层异常捕获:', {
+        message: error.message,
+        stack: error.stack
+      });
+      // 如果有 authUser，返回基础用户信息；否则返回 null
+      if (authUser) {
+        console.log('[dbUser.me] 异常情况下返回基础用户信息');
+        return {
+          ...authUser,
+          id: authUser.id,
+          email: authUser.email,
+          full_name: authUser.user_metadata?.full_name || authUser.email,
+          streakCount: 0,
+          longestStreak: 0,
+          freezeTokenCount: 0,
+          restDays: [],
+          lastClearDate: null,
+          nextDayPlannedQuests: [],
+          lastPlannedDate: null,
+          unlockedMilestones: [],
+          title: null,
+          chestOpenCounter: 0,
+          streakManuallyReset: false
+        };
+      }
+      console.log('[dbUser.me] 异常情况下返回 null');
+      return null;
     }
-    
-    console.log('[dbUser.me] Profile 查询成功，合并数据');
-    // 合并数据
-    return {
-      ...authUser,
-      ...(profile || {}),
-      id: authUser.id,
-      email: authUser.email,
-      full_name: profile?.full_name || authUser.user_metadata?.full_name || authUser.email,
-      // 添加默认值以兼容现有代码
-      streakCount: profile?.streak_count || 0,
-      longestStreak: profile?.longest_streak || 0,
-      freezeTokenCount: profile?.freeze_token_count || 0,
-      restDays: profile?.rest_days || [],
-      lastClearDate: profile?.last_clear_date || null,
-      nextDayPlannedQuests: profile?.next_day_planned_quests || [],
-      lastPlannedDate: profile?.last_planned_date || null,
-      unlockedMilestones: profile?.unlocked_milestones || [],
-      title: profile?.title || null,
-      chestOpenCounter: profile?.chest_open_counter || 0,
-      streakManuallyReset: profile?.streak_manually_reset || false
-    };
   },
 
   // 更新用户信息
