@@ -15,6 +15,13 @@ export default function Profile() {
   // 从 AuthContext 获取用户信息
   const { user, isLoadingAuth: isLoading } = useAuth();
 
+  // 🔍 调试日志
+  console.log('[Profile] Auth状态:', {
+    isLoading,
+    hasUser: !!user,
+    userId: user?.id || null
+  });
+
   const handleLogout = () => {
     base44.auth.logout();
   };
@@ -58,7 +65,17 @@ export default function Profile() {
 
   const unlockedMilestones = user?.unlockedMilestones || [];
 
-  if (isLoading) return <div className="flex justify-center p-12"><div className="w-12 h-12 border-4 border-black border-t-yellow-400 rounded-full animate-spin"></div></div>;
+  if (isLoading) {
+    console.log('[Profile] 显示加载状态 - isLoading:', isLoading);
+    return (
+      <div className="flex flex-col items-center justify-center p-12">
+        <div className="w-12 h-12 border-4 border-black border-t-yellow-400 rounded-full animate-spin"></div>
+        <p className="mt-4 text-sm font-bold text-gray-600">
+          {language === 'zh' ? '加载用户信息中...' : 'Loading user info...'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-4" style={{ backgroundColor: '#F9FAFB' }}>

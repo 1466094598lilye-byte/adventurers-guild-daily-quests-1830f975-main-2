@@ -88,18 +88,22 @@ export default function QuestBoard() {
     return () => clearInterval(interval);
   }, []);
 
-  const { data: quests = [], isLoading } = useQuery({
-    queryKey: ['quests', today],
+  const { data: quests = [], isLoading, error: questsError, isError } = useQuery({
+    queryKey: ['quests', today, user?.id || 'guest'],
     queryFn: async () => {
+      console.log('[QuestBoard] 开始获取任务，用户:', user ? `已登录(${user.id})` : '游客');
       try {
         const allQuests = await base44.entities.Quest.filter({ date: today }, '-created_date');
+        console.log('[QuestBoard] 获取到任务数量:', allQuests.length);
         
         // 游客模式下不尝试解密（数据本身就是明文）
         if (!user) {
+          console.log('[QuestBoard] 游客模式，返回原始任务');
           return allQuests;
         }
         
         // 登录模式下尝试解密
+        console.log('[QuestBoard] 登录模式，开始解密任务');
         const decryptedQuests = await Promise.all(
           allQuests.map(async (quest) => {
             try {
@@ -120,27 +124,52 @@ export default function QuestBoard() {
                 actionHint: data.actionHint
               };
             } catch (error) {
-              console.error('解密任务失败:', quest.id, error);
+              console.error('[QuestBoard] 解密任务失败:', quest.id, error);
               // 解密失败时，尝试使用原始数据（可能是游客模式创建的明文）
               return quest; 
             }
           })
         );
         
+        console.log('[QuestBoard] 解密完成，返回任务数量:', decryptedQuests.length);
         return decryptedQuests;
       } catch (error) {
-        console.error('获取任务失败:', error);
+        console.error('[QuestBoard] 获取任务失败:', error);
+        // 返回空数组而不是抛出错误，避免 React Query 一直 retry
         return [];
       }
     },
-    retry: 2,
+    retry: (failureCount, error) => {
+      // 🔍 调试日志
+      console.log('[QuestBoard] 查询失败，重试次数:', failureCount, '错误:', error);
+      // 如果是权限错误（RLS），不重试
+      if (error?.message?.includes('permission') || error?.message?.includes('RLS')) {
+        console.log('[QuestBoard] 权限错误，不重试');
+        return false;
+      }
+      // 最多重试1次
+      return failureCount < 1;
+    },
     retryDelay: 1000,
     staleTime: 5000,
     refetchOnWindowFocus: false,
+    // 即使查询失败，也显示空状态而不是一直 loading
+    throwOnError: false,
   });
 
   // 从 AuthContext 获取用户信息（已包含完整数据）
   const { user, refreshUser } = useAuth();
+
+  // 🔍 调试日志：监控查询状态
+  useEffect(() => {
+    console.log('[QuestBoard] 查询状态变化:', {
+      isLoading,
+      isError,
+      questsError: questsError?.message || null,
+      questsCount: quests.length,
+      user: user ? `已登录(${user.id})` : '游客'
+    });
+  }, [isLoading, isError, questsError, quests.length, user]);
 
   const { data: hasAnyLongTermQuests = false, isLoading: isLoadingLongTermQuests } = useQuery({
     queryKey: ['hasLongTermQuests', user?.id || 'guest'],
@@ -1646,8 +1675,38 @@ export default function QuestBoard() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-12">
+          <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="w-12 h-12 animate-spin" strokeWidth={4} />
+            <p className="mt-4 text-sm font-bold text-gray-600">
+              {language === 'zh' ? '加载任务中...' : 'Loading quests...'}
+            </p>
+          </div>
+        ) : isError ? (
+          <div 
+            className="p-8 text-center"
+            style={{
+              backgroundColor: '#FFF',
+              border: '4px solid #FF6B35',
+              boxShadow: '6px 6px 0px #000'
+            }}
+          >
+            <p className="text-xl font-black uppercase mb-2 text-red-600">
+              {language === 'zh' ? '加载失败' : 'Loading Failed'}
+            </p>
+            <p className="font-bold text-gray-600 mb-4">
+              {questsError?.message || (language === 'zh' ? '无法加载任务，请刷新页面重试' : 'Failed to load quests, please refresh and try again')}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 font-black uppercase"
+              style={{
+                backgroundColor: '#FFE66D',
+                border: '3px solid #000',
+                boxShadow: '3px 3px 0px #000'
+              }}
+            >
+              {language === 'zh' ? '刷新页面' : 'Refresh Page'}
+            </button>
           </div>
         ) : filteredQuests.length === 0 ? (
           <div 

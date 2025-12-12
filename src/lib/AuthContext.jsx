@@ -97,13 +97,20 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuthState = async () => {
     try {
+      console.log('[AuthContext] 开始检查认证状态');
       setIsLoadingAuth(true);
       setAuthError(null);
       
       const { data: { user: authUser }, error } = await supabase.auth.getUser();
       
+      console.log('[AuthContext] getUser 结果:', {
+        hasUser: !!authUser,
+        userId: authUser?.id || null,
+        error: error?.message || null
+      });
+      
       if (error) {
-        console.error('Auth check failed:', error);
+        console.error('[AuthContext] Auth check failed:', error);
         setUser(null);
         setIsAuthenticated(false);
         if (error.message.includes('JWT')) {
@@ -112,30 +119,43 @@ export const AuthProvider = ({ children }) => {
             message: 'Authentication required'
           });
         }
+        console.log('[AuthContext] 设置 isLoadingAuth = false (错误情况)');
+        setIsLoadingAuth(false);
       } else if (authUser) {
         // 获取完整用户信息
         try {
+          console.log('[AuthContext] 开始获取完整用户信息');
           const fullUser = await fetchFullUser();
+          console.log('[AuthContext] 获取完整用户信息成功:', {
+            userId: fullUser?.id || null,
+            hasStreakCount: fullUser?.streakCount !== undefined
+          });
           setUser(fullUser);
           setIsAuthenticated(true);
+          console.log('[AuthContext] 设置 isLoadingAuth = false (成功获取用户)');
+          setIsLoadingAuth(false);
         } catch (error) {
-          console.error('Failed to fetch full user:', error);
+          console.error('[AuthContext] Failed to fetch full user:', error);
           // 降级到基础用户信息
           setUser(authUser);
           setIsAuthenticated(true);
+          console.log('[AuthContext] 设置 isLoadingAuth = false (降级到基础用户)');
+          setIsLoadingAuth(false);
         }
       } else {
+        console.log('[AuthContext] 无用户，设置为游客模式');
         setUser(null);
         setIsAuthenticated(false);
+        console.log('[AuthContext] 设置 isLoadingAuth = false (游客模式)');
+        setIsLoadingAuth(false);
       }
-      
-      setIsLoadingAuth(false);
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('[AuthContext] Unexpected error:', error);
       setAuthError({
         type: 'unknown',
         message: error.message || 'An unexpected error occurred'
       });
+      console.log('[AuthContext] 设置 isLoadingAuth = false (异常情况)');
       setIsLoadingAuth(false);
     }
   };
