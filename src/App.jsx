@@ -26,23 +26,29 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 const AuthenticatedApp = () => {
   const { isLoadingAuth, authError, isAuthenticated, navigateToLogin, user } = useAuth();
 
-  // 🔍 调试日志：检查 Auth 状态
+  // 🔍 调试日志：检查 Auth 状态（每次渲染都打印）
+  console.log('[AuthenticatedApp] ========== 渲染检查 ==========');
   console.log('[AuthenticatedApp] Auth状态:', {
     isLoadingAuth,
     isAuthenticated,
     hasUser: !!user,
-    authError: authError?.type || null
+    userId: user?.id || null,
+    authError: authError?.type || null,
+    authErrorMessage: authError?.message || null
   });
 
   // Show loading spinner while checking auth
   if (isLoadingAuth) {
-    console.log('[AuthenticatedApp] 显示加载状态 - isLoadingAuth:', isLoadingAuth);
+    console.log('[AuthenticatedApp] ⚠️ 显示加载状态 - isLoadingAuth:', isLoadingAuth);
+    console.log('[AuthenticatedApp] 当前时间:', new Date().toISOString());
     return (
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
       </div>
     );
   }
+
+  console.log('[AuthenticatedApp] ✅ Auth 加载完成，渲染主应用');
 
   // Handle authentication errors
   if (authError) {

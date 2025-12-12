@@ -88,9 +88,24 @@ export default function QuestBoard() {
     return () => clearInterval(interval);
   }, []);
 
+  // 🔥 关键修复：先获取 user，再使用 useQuery
+  // 从 AuthContext 获取用户信息（已包含完整数据）
+  const { user, refreshUser } = useAuth();
+
+  // 🔍 调试日志：监控 user 状态
+  useEffect(() => {
+    console.log('[QuestBoard] User 状态变化:', {
+      hasUser: !!user,
+      userId: user?.id || null,
+      isLoadingAuth: undefined // 这个在 AuthenticatedApp 中已经处理
+    });
+  }, [user]);
+
   const { data: quests = [], isLoading, error: questsError, isError } = useQuery({
     queryKey: ['quests', today, user?.id || 'guest'],
     queryFn: async () => {
+      console.log('[QuestBoard] ========== 查询开始 ==========');
+      console.log('[QuestBoard] queryKey:', ['quests', today, user?.id || 'guest']);
       console.log('[QuestBoard] 开始获取任务，用户:', user ? `已登录(${user.id})` : '游客');
       try {
         const allQuests = await base44.entities.Quest.filter({ date: today }, '-created_date');
@@ -132,44 +147,67 @@ export default function QuestBoard() {
         );
         
         console.log('[QuestBoard] 解密完成，返回任务数量:', decryptedQuests.length);
+        console.log('[QuestBoard] ========== 查询成功完成 ==========');
         return decryptedQuests;
       } catch (error) {
-        console.error('[QuestBoard] 获取任务失败:', error);
+        console.error('[QuestBoard] ========== 查询失败 ==========');
+        console.error('[QuestBoard] 获取任务失败:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         // 返回空数组而不是抛出错误，避免 React Query 一直 retry
+        console.log('[QuestBoard] 返回空数组，避免无限重试');
         return [];
       }
     },
     retry: (failureCount, error) => {
       // 🔍 调试日志
-      console.log('[QuestBoard] 查询失败，重试次数:', failureCount, '错误:', error);
+      console.log('[QuestBoard] ========== 查询重试判断 ==========');
+      console.log('[QuestBoard] 查询失败，重试次数:', failureCount, '错误:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details
+      });
       // 如果是权限错误（RLS），不重试
-      if (error?.message?.includes('permission') || error?.message?.includes('RLS')) {
+      if (error?.message?.includes('permission') || 
+          error?.message?.includes('RLS') || 
+          error?.code === 'PGRST301' ||
+          error?.code === '42501') {
         console.log('[QuestBoard] 权限错误，不重试');
         return false;
       }
-      // 最多重试1次
-      return failureCount < 1;
+      // 如果是网络错误，最多重试1次
+      if (failureCount < 1) {
+        console.log('[QuestBoard] 网络错误，允许重试');
+        return true;
+      }
+      console.log('[QuestBoard] 已达到最大重试次数，不重试');
+      return false;
     },
     retryDelay: 1000,
     staleTime: 5000,
     refetchOnWindowFocus: false,
     // 即使查询失败，也显示空状态而不是一直 loading
     throwOnError: false,
+    // 确保查询在 enabled 时才会执行（等待 user 状态确定）
+    enabled: true, // 总是启用，但会在 queryFn 中处理 user 为 null 的情况
   });
-
-  // 从 AuthContext 获取用户信息（已包含完整数据）
-  const { user, refreshUser } = useAuth();
 
   // 🔍 调试日志：监控查询状态
   useEffect(() => {
-    console.log('[QuestBoard] 查询状态变化:', {
+    console.log('[QuestBoard] ========== 查询状态变化 ==========');
+    console.log('[QuestBoard] 查询状态:', {
       isLoading,
       isError,
       questsError: questsError?.message || null,
+      questsErrorCode: questsError?.code || null,
       questsCount: quests.length,
-      user: user ? `已登录(${user.id})` : '游客'
+      user: user ? `已登录(${user.id})` : '游客',
+      queryKey: ['quests', today, user?.id || 'guest']
     });
-  }, [isLoading, isError, questsError, quests.length, user]);
+  }, [isLoading, isError, questsError, quests.length, user, today]);
 
   const { data: hasAnyLongTermQuests = false, isLoading: isLoadingLongTermQuests } = useQuery({
     queryKey: ['hasLongTermQuests', user?.id || 'guest'],

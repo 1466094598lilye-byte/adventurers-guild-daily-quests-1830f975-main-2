@@ -206,18 +206,53 @@ export const dbDelete = {
 export const dbUser = {
   // 获取当前用户信息（从 Supabase Auth 和 profiles 表）
   async me() {
+    console.log('[dbUser.me] 开始获取用户信息');
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    
     if (authError || !authUser) {
+      console.log('[dbUser.me] 用户未认证:', authError?.message || 'No user');
       throw new Error('User not authenticated');
     }
     
+    console.log('[dbUser.me] Auth 用户获取成功:', authUser.id);
+    
     // 尝试从 profiles 表获取额外信息
+    console.log('[dbUser.me] 开始查询 profiles 表');
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', authUser.id)
       .single();
     
+    // 🔥 关键修复：如果 profile 查询失败（比如 RLS 权限问题），返回基础用户信息而不是抛出错误
+    if (profileError) {
+      console.warn('[dbUser.me] Profile 查询失败，使用基础用户信息:', {
+        error: profileError.message,
+        code: profileError.code,
+        details: profileError.details
+      });
+      // 返回基础用户信息，而不是抛出错误
+      return {
+        ...authUser,
+        id: authUser.id,
+        email: authUser.email,
+        full_name: authUser.user_metadata?.full_name || authUser.email,
+        // 添加默认值以兼容现有代码
+        streakCount: 0,
+        longestStreak: 0,
+        freezeTokenCount: 0,
+        restDays: [],
+        lastClearDate: null,
+        nextDayPlannedQuests: [],
+        lastPlannedDate: null,
+        unlockedMilestones: [],
+        title: null,
+        chestOpenCounter: 0,
+        streakManuallyReset: false
+      };
+    }
+    
+    console.log('[dbUser.me] Profile 查询成功，合并数据');
     // 合并数据
     return {
       ...authUser,
