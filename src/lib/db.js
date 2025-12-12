@@ -14,6 +14,7 @@ const isAuthenticated = async () => {
 };
 
 // 获取当前用户（如果已登录）
+// 使用 getUser() 确保获取到有效的用户，避免 session 缓存不一致的问题
 const getCurrentUser = async () => {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
@@ -119,6 +120,7 @@ export const dbQuery = {
 export const dbInsert = {
   async create(tableName, data) {
     // 获取当前用户（使用 supabase.auth.getUser()，不使用废弃的 supabase.auth.user()）
+    // 使用 getUser() 确保获取到有效的用户，避免 session 缓存不一致的问题
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     // 游客模式：使用 localStorage
