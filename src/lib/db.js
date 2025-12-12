@@ -118,21 +118,25 @@ export const dbQuery = {
  */
 export const dbInsert = {
   async create(tableName, data) {
-    const user = await getCurrentUser();
+    // 获取当前用户（使用 supabase.auth.getUser()，不使用废弃的 supabase.auth.user()）
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     // 游客模式：使用 localStorage
-    if (!user) {
+    if (authError || !user) {
       return guestStorage.create(tableName, data);
     }
     
     // 登录模式：使用 Supabase
+    // 确保 owner_id 始终设置为当前用户 ID，即使传入数据中已包含 owner_id
+    const insertData = {
+      ...data,
+      owner_id: user.id, // 强制设置为当前用户 ID，覆盖任何传入的 owner_id
+      created_date: new Date().toISOString()
+    };
+    
     const { data: result, error } = await supabase
       .from(tableName)
-      .insert({
-        ...data,
-        owner_id: user.id,
-        created_date: new Date().toISOString()
-      })
+      .insert(insertData)
       .select()
       .single();
     

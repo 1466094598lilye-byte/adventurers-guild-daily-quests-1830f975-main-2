@@ -102,16 +102,12 @@ export const migrateGuestData = async (options = {}) => {
             // 准备迁移数据
             // 注意：保持原始 ID，但确保 owner_id 正确设置
             // 如果 ID 冲突，Supabase 会报错，我们会在错误处理中处理
+            // 强制设置 owner_id 为当前用户 ID，覆盖任何传入的 owner_id
             const migrationData = {
               ...item,
-              owner_id: authUser.id,
+              owner_id: authUser.id, // 强制设置为当前用户 ID，确保 RLS 策略通过
               // 保持原始 ID，让 Supabase 处理冲突
             };
-            
-            // 移除 owner_id 如果原来是 'guest'
-            if (migrationData.owner_id === 'guest') {
-              migrationData.owner_id = authUser.id;
-            }
 
             // 对于 quests，需要加密 title 和 actionHint
             if (tableName === 'quests' && (migrationData.title || migrationData.actionHint)) {
@@ -151,7 +147,10 @@ export const migrateGuestData = async (options = {}) => {
 
             // 插入数据到 Supabase
             // 如果 ID 以 guest_ 开头，让 Supabase 自动生成新 ID
-            const insertData = { ...migrationData };
+            const insertData = { 
+              ...migrationData,
+              owner_id: authUser.id // 再次确保 owner_id 正确设置，防止被覆盖
+            };
             if (insertData.id && insertData.id.startsWith('guest_')) {
               delete insertData.id; // 让 Supabase 自动生成新 ID
             }
